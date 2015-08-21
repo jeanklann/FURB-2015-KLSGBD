@@ -174,7 +174,7 @@ namespace ProjetoBD2 {
             int totalSize = data.Length;
             foreach(object item in data) {
                 if(item is string) {
-                    totalSize += ((string)item).Length;
+                    totalSize += ((string)item).Length+1;
                 } if(item is int) {
                     totalSize += sizeof(int);
                 }
@@ -194,11 +194,13 @@ namespace ProjetoBD2 {
                         offset++;
                     }
                 } else if(item is string) {
-                    ((string)item).CopyTo(0, Data, offset, ((string)item).Length);
-                    offset += ((string)item).Length;
+                    newData[offset] = (char) ((string)item).Length;
+                    ((string)item).CopyTo(0, newData, offset+1, ((string)item).Length);
+                    offset += ((string)item).Length+1;
                 }
                 j++;
             }
+            Insert(new string(newData));
         }
         public void ChangePage(char[] data){
             Data = data;
