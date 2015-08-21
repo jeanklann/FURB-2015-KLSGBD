@@ -179,6 +179,7 @@ namespace ProjetoBD2 {
                     totalSize += sizeof(int);
                 }
             }
+
             char[] newData = new char[totalSize];
             int offset = data.Length;
             int j = 0;
