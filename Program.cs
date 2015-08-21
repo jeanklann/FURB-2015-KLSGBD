@@ -13,6 +13,8 @@ namespace ProjetoBD2 {
 
     class MainClass {
         public static void Main(string[] args) {
+
+
             Console.WriteLine("");
             PageInterface p = new PageInterface(PoliticaDeSubstituicao.MRU);
 
@@ -24,19 +26,10 @@ namespace ProjetoBD2 {
 
             p.Save(0);
             */
-            p[1].Print();
-            p[2].Print();
-            p[3].Print();
-            p[4].Print();
-            p[5].Print();
-            p[6].Print();
-            p[7].Print();
-            p[8].Print();
-            p[9].Print();
-            p[10].Print();
-            p[11].Print();
-            p[12].Print();
+            p[0].Data = new char[128];
+            p[0].Insert(new object[]{ 13, "teste", "testando" });
             p[0].Print();
+
             //p[0].Data = new char[128];
             //p.Load(0);
             //p.Print();
@@ -176,6 +169,36 @@ namespace ProjetoBD2 {
 
             PinCount++;
             UltimoAcesso = DateTime.Now.ToFileTimeUtc();
+        }
+        public void Insert(object[] data){
+            int totalSize = data.Length;
+            foreach(object item in data) {
+                if(item is string) {
+                    totalSize += ((string)item).Length;
+                } if(item is int) {
+                    totalSize += sizeof(int);
+                }
+            }
+            char[] newData = new char[totalSize];
+            int offset = data.Length;
+            int j = 0;
+            foreach(object item in data) {
+                newData[j] = (char)offset;
+                if(item is int) {
+                    string bin = Convert.ToString((int)item, 2);
+                    while(bin.Length < sizeof(int) * 8)
+                        bin = "0" + bin;
+                    for(int i = 0; i < sizeof(int); i++) {
+                        byte b = (byte)Convert.ToInt32(bin.Substring(i * 8, 8), 2);
+                        newData[offset] = (char)b;
+                        offset++;
+                    }
+                } else if(item is string) {
+                    ((string)item).CopyTo(0, Data, offset, ((string)item).Length);
+                    offset += ((string)item).Length;
+                }
+                j++;
+            }
         }
         public void ChangePage(char[] data){
             Data = data;
