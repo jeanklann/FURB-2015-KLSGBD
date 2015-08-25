@@ -28,7 +28,19 @@ namespace ProjetoBD2 {
             */
             p[0].Data = new char[128];
             p[0].Insert(new object[]{ 13, "teste", "testando" });
+            p[0].Insert(new object[]{ 14, "teste", "testando" });
+            p[0].Insert(new object[]{ 15, "teste", "testando" });
+            p.Save(0);
             p[0].Print();
+
+            object[] tmp = new object[]{ 0, "", "" };
+            object[] tmp2 = p[0].Read(1, tmp);
+
+            Console.WriteLine(tmp2[0]);
+            Console.WriteLine(tmp2[1]);
+            Console.WriteLine(tmp2[2]);
+
+            //p[0].Print();
 
             //p[0].Data = new char[128];
             //p.Load(0);
@@ -158,18 +170,41 @@ namespace ProjetoBD2 {
         public void Insert(string data){
             Dirt = true;
             int qtde = Data[Data.Length - 1];
-            int offset = 0;
-            int i = 0;
-            for(; i < qtde; i++) {
-                offset += Data[(Data.Length - 3) - i];
-            }
-            Data[(Data.Length - 3) - i] = (char) data.Length;
+            int offset = Data[(Data.Length - 3)];
+            Data[(Data.Length - 4) - qtde] = (char)(Data[(Data.Length - 3)]);
+            Data[(Data.Length - 3)] += (char)(data.Length);
             data.CopyTo(0, Data, offset, data.Length);
             Data[Data.Length - 1]++;
-
             PinCount++;
             UltimoAcesso = DateTime.Now.ToFileTimeUtc();
         }
+
+        public object[] Read(int i, object[] structure){
+            object[] values = new object[structure.Length];
+            int qtde = Data[Data.Length - 1];
+            if(structure==null) 
+                throw new ArgumentException("Deve ser enviado a estrutura como parâmetro");
+            if(i > qtde)
+                throw new ArgumentException("Indice fora de alcance");
+            int offset = Data[(Data.Length - 4)-i];
+            for (int j = 0; j < structure.Length; j++) {
+                char[] value = new char[Constants.PAGESIZE];
+                if(structure[j] is int) {
+                    Array.Copy(Data, offset+Data[offset+j], value, 0, 4);
+                    byte[] valueByte = new byte[4];
+                    for (int k = 0; k < valueByte.Length; k++) {
+                        valueByte[k] = (byte)value[(valueByte.Length-1)-k];
+                    }
+                    values[j] = BitConverter.ToInt32(valueByte, 0);
+                } else if(structure[j] is string) {
+                    Array.Copy(Data, offset+Data[offset+j]+1, value, 0, Data[offset+Data[offset+j]]);
+                    values[j] = new string(value);
+                }
+            }
+            return values;
+
+        }
+
         public void Insert(object[] data){
             int totalSize = data.Length;
             foreach(object item in data) {
