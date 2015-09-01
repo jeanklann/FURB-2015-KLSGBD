@@ -8,7 +8,7 @@ namespace ProjetoBD2 {
         public const string FILEPATH = "/home/klann/projetobd2/prjbd2.data";
         public const int MAXPAGES = 20;
         public const int MAXMEMORYPAGES = 10;
-        public const int PAGESIZE = 128;
+        public const int PAGESIZE = 256;
     }
 
     class MainClass {
@@ -26,15 +26,16 @@ namespace ProjetoBD2 {
 
             p.Save(0);
             */
-            p[0].Data = new char[128];
+
+            p[0].Data = new byte[Constants.PAGESIZE];
             p[0].Insert(new object[]{ 13, "teste", "testando" });
-            p[0].Insert(new object[]{ 14, "teste", "testando" });
-            p[0].Insert(new object[]{ 15, "teste", "testando" });
+            p[0].Insert(new object[]{ 14, "outro", "ttteeste" });
+            p[0].Insert(new object[]{ 15, "mais", "umteste" });
             p.Save(0);
             p[0].Print();
 
             object[] tmp = new object[]{ 0, "", "" };
-            object[] tmp2 = p[0].Read(1, tmp);
+            object[] tmp2 = p[0].Read(2, tmp);
 
             Console.WriteLine(tmp2[0]);
             Console.WriteLine(tmp2[1]);
@@ -152,7 +153,7 @@ namespace ProjetoBD2 {
             stream.Position = page.FileIndex * Constants.PAGESIZE;
             stream.Read(buffer, 0, Constants.PAGESIZE);
             for(int i = 0; i < buffer.Length; i++) {
-                page.Data[i] = (char) buffer[i];
+                page.Data[i] = buffer[i];
             }
             page.Dirt = false;
             page.PinCount=1;
@@ -161,44 +162,50 @@ namespace ProjetoBD2 {
     }
 
     class Page{
-        public char[] Data = new char[Constants.PAGESIZE];
+        public byte[] Data = new byte[Constants.PAGESIZE];
         public bool Dirt = false;
         public int PinCount = 0;
         public long UltimoAcesso = 0;
         public int FileIndex;
 
+
+
         public void Insert(string data){
             Dirt = true;
-            int qtde = Data[Data.Length - 1];
-            int offset = Data[(Data.Length - 3)];
-            Data[(Data.Length - 4) - qtde] = (char)(Data[(Data.Length - 3)]);
-            Data[(Data.Length - 3)] += (char)(data.Length);
-            data.CopyTo(0, Data, offset, data.Length);
-            Data[Data.Length - 1]++;
+            int qtde = BitConverter.ToInt32(Data, Data.Length - 1 * sizeof(int));
+            int offset = BitConverter.ToInt32(Data, Data.Length - 3 * sizeof(int));
+
+            Array.Copy(Data, Data.Length - 3 * sizeof(int), Data, (Data.Length - 4 * sizeof(int)) - qtde*sizeof(int), sizeof(int));
+            Array.Copy(BitConverter.GetBytes(offset + data.Length), 0, Data, Data.Length - 3 * sizeof(int), sizeof(int));
+
+            Array.Copy(Functions.GetBytes(data), 0, Data, offset, data.Length);
+            qtde++;
+            Array.Copy(BitConverter.GetBytes(qtde), 0, Data, Data.Length - 1 * sizeof(int), sizeof(int));
             PinCount++;
             UltimoAcesso = DateTime.Now.ToFileTimeUtc();
         }
+            
+
+
 
         public object[] Read(int i, object[] structure){
             object[] values = new object[structure.Length];
-            int qtde = Data[Data.Length - 1];
+            int qtde = BitConverter.ToInt32(Data, Data.Length - 1 * sizeof(int));
             if(structure==null) 
                 throw new ArgumentException("Deve ser enviado a estrutura como parâmetro");
             if(i > qtde)
                 throw new ArgumentException("Indice fora de alcance");
-            int offset = Data[(Data.Length - 4)-i];
+            int offset = BitConverter.ToInt32(Data, (Data.Length - 4*sizeof(int))-i*sizeof(int));
             for (int j = 0; j < structure.Length; j++) {
-                char[] value = new char[Constants.PAGESIZE];
                 if(structure[j] is int) {
-                    Array.Copy(Data, offset+Data[offset+j], value, 0, 4);
-                    byte[] valueByte = new byte[4];
-                    for (int k = 0; k < valueByte.Length; k++) {
-                        valueByte[k] = (byte)value[(valueByte.Length-1)-k];
-                    }
-                    values[j] = BitConverter.ToInt32(valueByte, 0);
+                    int offsetInt = BitConverter.ToInt32(Data, offset+j*sizeof(int));
+                    values[j] = BitConverter.ToInt32(Data, offset + offsetInt);
                 } else if(structure[j] is string) {
-                    Array.Copy(Data, offset+Data[offset+j]+1, value, 0, Data[offset+Data[offset+j]]);
-                    values[j] = new string(value);
+                    int offsetString = BitConverter.ToInt32(Data, offset+j*sizeof(int));
+                    int sizeString = BitConverter.ToInt32(Data, offset+offsetString);
+                    byte[] arr = new byte[sizeString];
+                    Array.Copy(Data, offset + offsetString + sizeof(int), arr, 0, sizeString);
+                    values[j] = Functions.GetString(arr);
                 }
             }
             return values;
@@ -206,46 +213,41 @@ namespace ProjetoBD2 {
         }
 
         public void Insert(object[] data){
-            int totalSize = data.Length;
+            int totalSize = data.Length*sizeof(int);
             foreach(object item in data) {
                 if(item is string) {
-                    totalSize += ((string)item).Length+1;
+                    totalSize += ((string)item).Length+1*sizeof(int);
                 } if(item is int) {
                     totalSize += sizeof(int);
                 }
             }
 
-            char[] newData = new char[totalSize];
-            int offset = data.Length;
+            byte[] newData = new byte[totalSize];
+            int offset = data.Length*sizeof(int);
             int j = 0;
             foreach(object item in data) {
-                newData[j] = (char)offset;
+                Array.Copy(BitConverter.GetBytes(offset), 0, newData, j*sizeof(int), sizeof(int));
                 if(item is int) {
-                    string bin = Convert.ToString((int)item, 2);
-                    while(bin.Length < sizeof(int) * 8)
-                        bin = "0" + bin;
-                    for(int i = 0; i < sizeof(int); i++) {
-                        byte b = (byte)Convert.ToInt32(bin.Substring(i * 8, 8), 2);
-                        newData[offset] = (char)b;
-                        offset++;
-                    }
+                    Array.Copy(BitConverter.GetBytes((int)item), 0, newData, offset, sizeof(int));
+                    offset += sizeof(int);
                 } else if(item is string) {
-                    newData[offset] = (char) ((string)item).Length;
-                    ((string)item).CopyTo(0, newData, offset+1, ((string)item).Length);
-                    offset += ((string)item).Length+1;
+                    Array.Copy(BitConverter.GetBytes(((string)item).Length), 0, newData, offset, sizeof(int));
+                    Array.Copy(Functions.GetBytes((string)item), 0, newData, offset + 1*sizeof(int), ((string)item).Length);
+                    offset += ((string)item).Length+1*sizeof(int);
                 }
                 j++;
             }
-            Insert(new string(newData));
+            Insert(Functions.GetString(newData));
         }
-        public void ChangePage(char[] data){
+        public void ChangePage(byte[] data){
             Data = data;
             Dirt = true;
             PinCount++;
             UltimoAcesso = DateTime.Now.ToFileTimeUtc();
         }
         public void ChangePage(string data){
-            data.CopyTo(0,Data,0,data.Length);
+            
+            Array.Copy(Functions.GetBytes(data), 0, Data, 0, data.Length);
             Dirt = true;
             PinCount++;
             UltimoAcesso = DateTime.Now.ToFileTimeUtc();
@@ -275,7 +277,7 @@ namespace ProjetoBD2 {
                     if(Data[i] < 10)
                         Console.Write(" ");
                 } else {
-                    Console.Write(Data[i]+" ");
+                    Console.Write(((char)Data[i])+" ");
                 }
                 Console.Write(" ");
             }
@@ -283,4 +285,5 @@ namespace ProjetoBD2 {
             Console.WriteLine("==================================================");
         }
     }
+
 }
